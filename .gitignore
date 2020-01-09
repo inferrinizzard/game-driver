@@ -1,0 +1,9 @@
+chrome-win/
+*chrome-win
+*.zip
+
+__pycache__/
+
+.ipynb*/
+
+*.gdoc
