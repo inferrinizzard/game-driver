@@ -1,5 +1,7 @@
 import asyncio
 from pyppeteer import launch
+from IPython.display import display, Image
+from base64 import b64decode
 
 # from asgiref.sync import async_to_sync # HOF
 
@@ -31,17 +33,17 @@ class GameDriverPyppeteer():
     async def init_browser(self):
         self.browser = await launch(headless=False)
         self.page = await self.browser.newPage()  # redundant?
-        self.client = await self.page.target().createCDPSession()
+        self.client = await self.page.target.createCDPSession()
 
-    async def add_sensor(self, name, sensor):
+    def add_sensor(self, name, sensor):
         if(name not in self.sensors):
             self.sensors[name] = sensor
-            await sensor.install(self)
+            async_run(sensor.install(self))
         return self.sensors
 
-    async def remove_sensor(self, name):
+    def remove_sensor(self, name):
         if(name in self.sensors):
-            await self.sensors[name].remove(self)
+            async_run(self.sensors[name].remove(self))
             self.sensors.pop(name)
         return self.sensors
 
@@ -54,16 +56,28 @@ class GameDriverPyppeteer():
     async def send(self, *args, **kwargs):
         if("evaluate" in args[0]):
             return await self.page.evaluate(kwargs["expression"], force_expr=True)
-        elif("type" in args[0]):
-            return await self.page.type(kwargs["target"], kwargs["expression"])
         else:
-            return await self.client.send(*args, **kwargs)
+            return await self.client.send(*args, params=kwargs)
 
     async def step(self):
         return {name: await sensor.observe(self) for name, sensor in self.sensors.items()}
 
+    async def screenshot(self, id=None, url=None):
+        bounds = await self.page.evaluate('''
+            id => {
+                let {x,y,width,height} = (el =>
+                    el ?
+                    el.getBoundingClientRect() :
+                    {}
+                )(document.getElementById(id));
+                return x ? {x:x,y:y,width:width,height:height} : null;
+            }
+            ''', id)
+        return Image(await self.page.screenshot(clip=bounds))
+
     def close(self):
         async_run(self.browser.close())
+        print("game driver closed")
 
     def __del__(self):
         self.close()
